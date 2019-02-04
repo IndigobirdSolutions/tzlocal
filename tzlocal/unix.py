@@ -1,4 +1,6 @@
 import os
+import sys
+
 import pytz
 import re
 
@@ -131,8 +133,20 @@ def _get_localzone(_root='/'):
     # there is no reasonable way to run tests for this, but let's make an effort.
     if os.path.exists('/system/bin/getprop'):
         import subprocess
-        androidtz = subprocess.check_output(['getprop', 'persist.sys.timezone'])
-        return pytz.timezone(androidtz.strip().decode())
+        androidtz = subprocess.check_output(['getprop', 'persist.sys.timezone']).strip().decode()
+        if androidtz:
+            return pytz.timezone(androidtz)
+    # on some android devices getprop does not gives any results
+    if hasattr(sys, 'getandroidapilevel'):
+        try:
+            # we are on android and use jnius to get tz in official android supported way
+            from jnius import autoclass
+            TimeZone = autoclass('java.util.TimeZone')
+            androidtz = TimeZone.getDefault().getID()
+            return pytz.timezone(androidtz)
+        except ImportError:
+            # we can't do anything about it
+            pass
 
     # No explicit setting existed. Use localtime
     for filename in ('etc/localtime', 'usr/local/etc/localtime'):
